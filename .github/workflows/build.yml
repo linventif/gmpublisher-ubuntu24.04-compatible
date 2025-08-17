@@ -1,5 +1,4 @@
 name: build
-
 on:
   push:
     tags:
@@ -9,88 +8,51 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build_linux:
-    runs-on: ubuntu-latest
+  build_linux_noble: # Ubuntu 24.04 → webkit2gtk 4.1 + glibc 2.39
+    runs-on: ubuntu-24.04
     steps:
-    - uses: actions/checkout@v2
-    - uses: actions/setup-node@v2
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
 
-    - name: Install system dependencies
-      run: |
-        echo "deb http://archive.ubuntu.com/ubuntu jammy main universe" | sudo tee -a /etc/apt/sources.list
-        sudo apt update
-        sudo apt install -y libwebkit2gtk-4.0-dev \
-            build-essential \
-            curl \
-            wget \
-            file \
-            libssl-dev \
-            libgtk-3-dev \
-            libayatana-appindicator3-dev \
-            librsvg2-dev
+      - name: Install system dependencies (webkit 4.1)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            build-essential curl wget file \
+            libssl-dev libgtk-3-dev \
+            libayatana-appindicator3-dev librsvg2-dev
 
-    - name: Install NPM dependencies
-      run: npm install
+      - name: Cache npm
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: npm-${{ hashFiles('package-lock.json') }}
 
-    - name: Build
-      run: npm run tauri build -- -v
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
 
-    - name: Prepare ZIP
-      run: |
-        cd src-tauri/target/release
-        zip -r gmpublisher_linux64.zip gmpublisher libsteam_api.so
+      - name: Install NPM dependencies
+        run: npm ci
 
-    - name: Release
-      uses: softprops/action-gh-release@v1
-      with:
-        files: src-tauri/target/release/gmpublisher_linux64.zip
-        fail_on_unmatched_files: true
+      - name: Build
+        run: npm run tauri build -- -v
 
-  build_windows:
-    runs-on: windows-latest
-    steps:
-    - uses: actions/checkout@v2
-    - uses: actions/setup-node@v2
+      - name: Prepare ZIP
+        run: |
+          cd src-tauri/target/release
+          zip -r gmpublisher_linux64.zip gmpublisher libsteam_api.so
 
-    - name: Install NPM dependencies
-      run: npm install
-
-    - name: Build
-      run: npm run tauri build -- -v
-      env:
-        RUSTFLAGS: -Ctarget-feature=+crt-static
-
-    - name: Release
-      uses: softprops/action-gh-release@v1
-      with:
-        files: src-tauri/target/release/bundle/msi/gmpublisher_*.msi
-        fail_on_unmatched_files: true
-
-  build_macos:
-    runs-on: macos-latest
-    steps:
-    - uses: actions/checkout@v2
-    - uses: actions/setup-node@v2
-
-    - name: Install NPM dependencies
-      run: npm install
-
-    - name: Install Rust targets
-      run: rustup target add x86_64-apple-darwin
-
-    - name: Build
-      run: npm run tauri build -- --target universal-apple-darwin -v
-
-    - name: Copy Steamworks SDK to bundle
-      run: cp src-tauri/lib/steam_api/redistributable_bin/osx/libsteam_api.dylib src-tauri/target/universal-apple-darwin/release/bundle/macos/gmpublisher.app/Contents/MacOS/libsteam_api.dylib
-
-    - name: Prepare ZIP
-      run: |
-        cd src-tauri/target/universal-apple-darwin/release/bundle/macos
-        zip -r gmpublisher_macOS.app.zip gmpublisher.app
-
-    - name: Release
-      uses: softprops/action-gh-release@v1
-      with:
-        files: src-tauri/target/universal-apple-darwin/release/bundle/macos/gmpublisher_macOS.app.zip
-        fail_on_unmatched_files: true
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: src-tauri/target/release/gmpublisher_linux64.zip
+          fail_on_unmatched_files: true
