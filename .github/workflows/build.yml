@@ -8,7 +8,7 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build_linux_noble: # Ubuntu 24.04 → webkit2gtk 4.1 + glibc 2.39
+  build_linux_noble:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
